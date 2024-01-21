@@ -1,6 +1,3 @@
-# import warnings
-# warnings.simplefilter(action="ignore", category=FutureWarning)
-
 import numpy as np
 import pandas as pd
 
@@ -23,8 +20,8 @@ Genetic Algorithm for Feature Selection
 
 
 class SelectionType(Enum):
-    TOURNAMENT = 1
-    WHEEL = 2
+    TOURNAMENT = "tournament"
+    WHEEL = "roulette"
 
     @classmethod
     def default(cls):
@@ -32,8 +29,8 @@ class SelectionType(Enum):
 
 
 class CrossoverType(Enum):
-    ONE_POINT = 1
-    UNIFORM = 2
+    ONE_POINT = "one_point"
+    UNIFORM = "uniform"
 
     @classmethod
     def default(cls):
@@ -41,8 +38,8 @@ class CrossoverType(Enum):
 
 
 class MutationType(Enum):
-    ONE_BIT = 1
-    MULTI_BIT = 2
+    ONE_BIT = "one_bit"
+    MULTI_BIT = "multi_bit"
 
     @classmethod
     def default(cls):
@@ -204,7 +201,9 @@ class GAFeatureSelector:
             self.population = deepcopy(mutated_chromosomes)
             scores = self._evaluate(self.population)
             self._update_best_chromosome(self.population, scores)
-        return self._best_chromosome, self._best_fitness
+        return self._best_chromosome, 1.0 - (
+            self._best_fitness - (1 - self.alpha) * len(self._best_chromosome)
+        )
 
     def _get_elite(
         self, population: List[np.array], fitness: np.array
@@ -215,8 +214,10 @@ class GAFeatureSelector:
     def _estimate_fitness(self, chromosome: np.array) -> float:
         data = self.X_train.iloc[:, chromosome]
 
-        self.estimator.fit(data, self.y_train)
-        y_pred = self.estimator.predict(self.X_validate.iloc[:, chromosome])
+        estimator = self.estimator()
+
+        estimator.fit(data, self.y_train)
+        y_pred = estimator.predict(self.X_validate.iloc[:, chromosome])
         return self._score_function(self.y_validate, y_pred, len(chromosome))
 
     def _evaluate(self, population: List[np.array]) -> np.array:
@@ -241,7 +242,7 @@ class GAFeatureSelector:
         elif self.verbose:
             logging.info(
                 f"Current best chromosome (fitness: {best_fitness}, "
-                + f"feature_num: {len(best_chromosome)}) is worse that the best one."
+                + f"feature_num: {len(best_chromosome)}) is worse than the best one."
             )
         original_score = 1.0 - (
             self._best_fitness - (1 - self.alpha) * len(self._best_chromosome)
@@ -382,3 +383,6 @@ class GAFeatureSelector:
                         new_population[chromo_idx], idx, gen
                     )
         return new_population
+
+    def get_best_history(self) -> List[tuple[np.array, int, float]]:
+        return self._best_history
