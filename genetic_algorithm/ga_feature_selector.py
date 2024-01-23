@@ -5,7 +5,6 @@ import logging
 
 from typing import Callable, List, Tuple
 
-from multiprocessing import cpu_count, Pool
 from numbers import Integral
 from numpy.typing import ArrayLike
 from copy import deepcopy
@@ -60,7 +59,6 @@ class GAFeatureSelector:
         mutation_rate: float = 0.1,
         tournament_size: int = 2,
         alpha: float = 0.99,
-        n_jobs: int = 1,
         random_state: int = None,
         verbose: bool = False,
     ):
@@ -111,18 +109,6 @@ class GAFeatureSelector:
         if tournament_size < 2:
             raise ValueError("tournament_size must be >= 2, got %d" % tournament_size)
         self.tournament_size = tournament_size
-
-        if n_jobs == -1:
-            self.n_jobs = cpu_count()
-        elif n_jobs > 0 and n_jobs <= cpu_count():
-            self.n_jobs = n_jobs
-        else:
-            raise ValueError(
-                "n_jobs must be either -1 (use all CPUs) or positive integer \
-                    less than your cpu cores number (got %d of possible %d)"
-                % n_jobs,
-                cpu_count(),
-            )
 
         if isinstance(random_state, Integral):
             np.random.seed(random_state)
@@ -221,8 +207,9 @@ class GAFeatureSelector:
         return self._score_function(self.y_validate, y_pred, len(chromosome))
 
     def _evaluate(self, population: List[np.array]) -> np.array:
-        pool = Pool(self.n_jobs)
-        fitness = pool.map(self._estimate_fitness, population)
+        fitness = []
+        for chromosome in population:
+            fitness.append(self._estimate_fitness(chromosome))
         return np.array(fitness)
 
     def _update_best_chromosome(
